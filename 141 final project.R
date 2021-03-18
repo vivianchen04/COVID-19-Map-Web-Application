@@ -56,6 +56,8 @@ head(df_af)
     new_data$Latitude <-  as.numeric(new_data$Latitude)
     new_data$Longitude <-  as.numeric(new_data$Longitude)
     
+    country_label=new_data$country
+    
 ui <- navbarPage(
     "Covid-19 Map",
     id = "main",
@@ -65,14 +67,17 @@ ui <- navbarPage(
         sidebarPanel(
             selectInput("continent", label= "continent", choices = new_data$continent,
                 selected = "-"
-            )
+            ),
+            selectInput("country", label = "country",choices = country_label, selected = "-")
         ),
-        mainPanel( textOutput("text"), plotOutput("p"))
+        mainPanel( textOutput("text"), 
+                   plotOutput("p"),
+                   tableOutput("a"))
         )
     )
 )
 
-server <- shinyServer(function(input, output) {
+server <- shinyServer(function(input, output,session) {
     
     # the label should include countrie name, confirmed, recovered, deaths,population,sq_km_area... 
     new_data <- mutate(new_data, cntnt=paste0('<strong>country: </strong>',country,
@@ -109,19 +114,32 @@ server <- shinyServer(function(input, output) {
     #create some histograms to analysis the data
     
     input_data <- reactive(
-        new_data %>% filter(continent == input$continent) %>% arrange(desc(deaths)) %>% slice(1:10)
+       # new_data %>% filter(continent == input$continent) %>% arrange(desc(deaths)) %>% slice(1:10)
+        new_data %>% filter(continent == input$continent)
     )
     
+    new_input_data <-reactive(
+        new_data %>% filter(continent == input$continent, country == input$country)
+    )    
     
-    output$p <- renderPlot({
+     output$p <- renderPlot({
         #top_e = new_data %>% filter(continent == "Europe") %>% arrange(desc(deaths)) %>% slice(1:10)
-        g<- ggplot(data=input_data(), aes(x = country, y = deaths))
+        data_p = input_data()%>% arrange(desc(deaths)) %>% slice(1:10)
+        g<- ggplot(data=data_p, aes(x = country, y = deaths))
         g<-g+ geom_bar(stat = "identity")+ ggtitle( paste("the top 10 countries that have highest deaths in", input_data()$continent)) + labs(x="country")
-        g      
+        g          
+        
     })
-       
+    observeEvent(
+        updateSelectInput(session, "country", choices = c("-", input_data()$country)),
+          
+        output$a<- renderTable({
+            a= new_input_data()[,1:5]
+            a})
+  )
+    
     output$text <- renderText({
-        "Note: the datasets has some NA values, therefore some countries may not includes in the plots."
+        "Note: the datasets has some NA values, therefore some countries may not includes in the plots i.e. China, America."
     })
 
 })
